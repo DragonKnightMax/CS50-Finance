@@ -41,7 +41,7 @@ Session(app)
 uri = os.getenv("DATABASE_URL")
 if uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://")
-db = SQL(uri)
+db = SQL(uri, pool_pre_ping=True)
 
 
 # Make sure API key is set
