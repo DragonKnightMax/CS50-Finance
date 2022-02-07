@@ -30,10 +30,12 @@ app.jinja_env.filters["usd"] = usd
 app.config["SESSION_FILE_DIR"] = mkdtemp()
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
+app.config["PREFERRED_URL_SCHEME"] = 'https'
+app.config["DEBUG"] = True
 Session(app)
 
 # Configure CS50 Library to use SQLite database
-#db = SQL("sqlite:///finance.db")
+# db = SQL("sqlite:///finance.db")
 
 # Heroku Postgres
 uri = os.getenv("DATABASE_URL")
@@ -52,7 +54,7 @@ if not os.environ.get("API_KEY"):
 def index():
     """Show portfolio of stocks"""
     # query rows that match the user id
-    stocks = db.execute("SELECT symbol, name, SUM(shares) AS holdings FROM history WHERE user_id = :user_id GROUP BY symbol", user_id=session["user_id"])
+    stocks = db.execute("SELECT symbol, SUM(shares) AS num_shares FROM history WHERE user_id = :user_id GROUP BY symbol", user_id=session["user_id"])
 
     portfolio = []
     subtotal = 0
@@ -62,14 +64,14 @@ def index():
         stock_info = lookup(stock["symbol"])
         temp = {
             "symbol": stock["symbol"],
-            "name": stock["name"],
-            "shares": stock["holdings"],
+            "name": stock_info["name"],
+            "shares": stock["num_shares"],
             "price": usd(stock_info["price"]),
-            "total": usd(stock_info["price"] * stock["holdings"])
+            "total": usd(stock_info["price"] * stock["num_shares"])
         }
 
         # calculate subtotal of assets
-        subtotal += stock_info["price"] * stock["holdings"]
+        subtotal += stock_info["price"] * stock["num_shares"]
 
         # create a row for each stock
         portfolio.append(temp)
@@ -131,10 +133,9 @@ def buy():
 
         # insert record into history table
         symbol = stock_to_buy["symbol"]
-        name = stock_to_buy["name"]
 
-        db.execute("INSERT INTO history (user_id, symbol, name, price, shares, total) VALUES (:user_id, :symbol, :name, :price, :shares, :total)",
-        user_id=session["user_id"], symbol=symbol, name=name, price=price_per_share, shares=shares, total=total)
+        db.execute("INSERT INTO history (user_id, symbol, price, shares) VALUES (:user_id, :symbol, :price, :shares)",
+        user_id=session["user_id"], symbol=symbol, price=price_per_share, shares=shares)
 
         # redirect user to homepage after buying stocks
         flash("Bought")
@@ -230,6 +231,7 @@ def reload():
 
     else:
         return render_template("reload.html")
+
 
 @app.route("/logout")
 def logout():
@@ -359,9 +361,8 @@ def sell():
 
         # insert transaction into history table
         symbol = stock_info["symbol"]
-        name = stock_info["name"]
-        db.execute("INSERT INTO history (user_id, symbol, name, price, shares, total) VALUES (:user_id, :symbol, :name, :price, :shares, :total)",
-        user_id=session["user_id"], symbol=symbol, name=name, price=price_per_share, shares=(-shares), total=total)
+        db.execute("INSERT INTO history (user_id, symbol, price, shares) VALUES (:user_id, :symbol, :price, :shares)",
+        user_id=session["user_id"], symbol=symbol, price=price_per_share, shares=(-shares))
 
         # redirect user to homepage
         flash("Sold")
